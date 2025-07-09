@@ -1,0 +1,53 @@
+services:
+  db:
+    image: postgres:15
+    restart: always
+    environment:
+      POSTGRES_USER: balajiaru06
+      POSTGRES_PASSWORD: test123
+      POSTGRES_DB: fastapi
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5434:5432"
+
+  fastapi:
+    build: .
+    depends_on:
+      - db
+    environment:
+      DATABASE_URL: postgresql://balajiaru06:test123@db:5432/fastapi
+    ports:
+      - "8002:8000"
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    restart: always
+
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.7
+    command: >
+      etcd
+      --advertise-client-urls http://0.0.0.0:2379
+      --listen-client-urls http://0.0.0.0:2379
+      --data-dir /etcd-data
+    ports:
+      - "2379:2379"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:2379/version"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: always
+
+  apisix:
+    image: apache/apisix:latest
+    depends_on:
+      - etcd
+    # volumes:
+      # - ./config/config.yaml:/usr/local/apisix/conf/config.yaml:ro
+    ports:
+      - "9080:9080"   # Public traffic to APISIX
+      - "9180:9180"   # Admin API
+    restart: always
+
+volumes:
+  postgres_data:
